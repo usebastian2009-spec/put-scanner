@@ -26,6 +26,7 @@ NASDAQ_HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 
 from collections import Counter
 FUNNEL = Counter()   # why tickers were dropped
+BETAS = {}           # ticker -> 1y daily beta vs SPY, filled by prefilter()
 
 
 def safe_float(x):
@@ -344,6 +345,7 @@ def get_pe(t, spot):
         "name": info.get("shortName", t.ticker),
         "sector": info.get("sector", ""), "industry": info.get("industry", ""),
         "market_cap": safe_float(info.get("marketCap")),
+        "beta_yahoo": safe_float(info.get("beta")),
         "business_summary": _trim_sentences(info.get("longBusinessSummary") or "", 700),
         "website": info.get("website", ""),
     }
@@ -523,6 +525,7 @@ def get_base(ticker):
         "rsi_nasdaq_last_close": rsi_nasdaq,
         "rsi_check_diff": float(rsi_close) - rsi_nasdaq if np.isfinite(rsi_nasdaq) else np.nan,
         "rsi_weekly": rsi_weekly,
+        "beta": BETAS.get(ticker, np.nan),
         "last_close_date": completed.index[-1].date().isoformat(),
         "bullish_divergence": div,
         "divergence_detail": div_info or "",
@@ -734,7 +737,7 @@ def earnings_days_away(ticker_obj):
 
 SUMMARY_KEYS = [
     "ticker", "name", "spot", "rsi", "rsi_last_close", "last_close_date", "rsi_bar_is_live",
-    "rsi_nasdaq_last_close", "rsi_check_diff", "rsi_weekly",
+    "rsi_nasdaq_last_close", "rsi_check_diff", "rsi_weekly", "beta", "beta_yahoo",
     "bullish_divergence", "divergence_detail", "pe", "pe_source", "eps_ttm", "forward_pe",
     "sector", "industry", "market_cap", "avg_dollar_volume", "business_summary", "website",
     "bars_filled_from_hourly", "bars_still_missing",
@@ -876,11 +879,31 @@ def nasdaq_universe():
     return sorted(set(syms))
 
 
+def beta_vs(close, bench_returns):
+    """Beta of daily returns vs the benchmark over the last BETA_LOOKBACK_DAYS sessions."""
+    r = close.pct_change()
+    df = pd.concat([r, bench_returns], axis=1, join="inner").dropna().tail(BETA_LOOKBACK_DAYS)
+    if len(df) < 120:
+        return np.nan
+    var = df.iloc[:, 1].var()
+    return float(df.iloc[:, 0].cov(df.iloc[:, 1]) / var) if var > 0 else np.nan
+
+
+def spy_returns():
+    spy = yf.download("SPY", period="2y", interval="1d", auto_adjust=False, progress=False)
+    close = spy["Close"]
+    if isinstance(close, pd.DataFrame):
+        close = close.iloc[:, 0]
+    close = _to_daily_index(close.to_frame("Close"))["Close"]
+    return close.pct_change().rename("bench")
+
+
 def prefilter(symbols, chunk=150):
     """Batch pass: price, dollar volume and exact daily RSI (missing sessions
     rebuilt from hourly bars, same as get_history). Only survivors get the
     per-ticker P/E and option-chain work."""
     keep = []
+    bench = spy_returns()
     for i in range(0, len(symbols), chunk):
         batch = symbols[i:i + chunk]
         try:
@@ -916,7 +939,12 @@ def prefilter(symbols, chunk=150):
                 elif not (RSI_MIN - 1 <= rsi_used <= RSI_MAX + 1):
                     FUNNEL["RSI diario fuera de %g-%g" % (RSI_MIN, RSI_MAX)] += 1
                 else:
-                    keep.append(sym)
+                    beta = beta_vs(df["Close"], bench)
+                    BETAS[sym] = beta
+                    if not (np.isfinite(beta) and beta >= MIN_BETA):
+                        FUNNEL["beta < %g" % MIN_BETA] += 1
+                    else:
+                        keep.append(sym)
             except Exception:
                 continue
         time.sleep(REQUEST_PAUSE)
@@ -954,7 +982,7 @@ def write_json(summaries, puts_df, universe_size, prefiltered, path="results.jso
     companies.sort(key=lambda c: max([p["premium_yield"] for p in c["puts"]] or [0]), reverse=True)
     out = {
         "generated_at": now_ny().strftime("%Y-%m-%d %H:%M ET"),
-        "filters": {"price": [MIN_PRICE, MAX_PRICE], "rsi": [RSI_MIN, RSI_MAX], "max_pe": MAX_PE,
+        "filters": {"price": [MIN_PRICE, MAX_PRICE], "rsi": [RSI_MIN, RSI_MAX], "min_beta": MIN_BETA, "max_pe": MAX_PE,
                     "min_weekly_yield": MIN_WEEKLY_YIELD, "delta": [MIN_DELTA, MAX_DELTA],
                     "dte": [MIN_DTE, MAX_DTE], "min_market_cap": MIN_MARKET_CAP,
                     "min_dollar_volume": MIN_AVG_DOLLAR_VOLUME, "gex_max_dte": GEX_MAX_DTE,
@@ -978,7 +1006,7 @@ def main():
             universe = sorted(set(universe) | set(nasdaq_universe()))
         except Exception as e:
             print(f"[WARN] Nasdaq screener failed ({e}); using TICKERS only")
-    print(f"Universe: {len(universe)} stocks. Pre-filtering price / volume / daily RSI...")
+    print(f"Universe: {len(universe)} stocks. Pre-filtering price / volume / daily RSI / beta...")
     symbols = prefilter(universe)
     print(f"{len(symbols)} pass the pre-filter; checking exact RSI, P/E and weekly puts.\n")
 
@@ -1011,7 +1039,7 @@ def main():
     print("=" * 72)
     if summaries:
         s = pd.DataFrame(summaries)
-        cols = ["ticker", "spot", "rsi", "rsi_last_close", "rsi_nasdaq_last_close", "rsi_weekly", "bullish_divergence", "pe", "forward_pe",
+        cols = ["ticker", "spot", "beta", "rsi", "rsi_last_close", "rsi_nasdaq_last_close", "rsi_weekly", "bullish_divergence", "pe", "forward_pe",
                 "earnings_days", "gamma_regime", "gamma_flip", "support_near", "support_main", "resistance_near", "resistance_main"]
         print(s[[c for c in cols if c in s.columns]].to_string(index=False, float_format=lambda x: f"{x:.2f}"))
 

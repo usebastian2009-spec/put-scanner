@@ -217,6 +217,7 @@ def company(c):
         chips.append('<span class="chip floor">divergencia alcista RSI</span>')
     flip = c.get("gamma_flip")
     stats = [
+        ("Beta (1 año)", num(c.get("beta"), 2), ""),
         ("RSI diario", num(c.get("rsi"), 1), ""),
         ("P/E", num(c.get("pe"), 1), ""),
         ("P/E forward", num(c.get("forward_pe"), 1), ""),
@@ -267,13 +268,13 @@ def overview(companies):
                    f'({num(best["premium_yield"], 2, pct=True)})') if best else "—"
         rows.append(
             f'<tr><td><a href="#{esc(c["ticker"])}">{esc(c["ticker"])}</a></td><td>{num(c["spot"])}</td>'
-            f'<td>{num(c.get("rsi"), 1)}</td><td>{num(c.get("pe"), 1)}</td>'
+            f'<td>{num(c.get("beta"), 2)}</td><td>{num(c.get("rsi"), 1)}</td><td>{num(c.get("pe"), 1)}</td>'
             f'<td class="floor-t">{strike_txt(c.get("floor"))}</td><td class="ceil-t">{strike_txt(c.get("ceiling"))}</td>'
             f'<td class="l">{esc(c.get("gamma_regime") or "—")}</td>'
             f'<td>{"—" if c.get("earnings_days") is None else int(c["earnings_days"])}</td>'
             f'<td class="l">{put_txt}</td></tr>')
     return ('<div class="scroll"><table class="overview"><thead><tr><th class="l">Ticker</th><th>Precio</th>'
-            '<th>RSI</th><th>P/E</th><th>Piso</th><th>Techo</th><th class="l">Gamma</th><th>Earnings (días)</th>'
+            '<th>Beta</th><th>RSI</th><th>P/E</th><th>Piso</th><th>Techo</th><th class="l">Gamma</th><th>Earnings (días)</th>'
             f'<th class="l">Put semanal con más prima</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
 
 
@@ -282,6 +283,7 @@ def build(data):
     companies = data["companies"]
     chips = [
         f'precio ${f["price"][0]:g}–${f["price"][1]:g}',
+        f'beta ≥ {f.get("min_beta", 0):g}',
         f'RSI diario {f["rsi"][0]:g}–{f["rsi"][1]:g}',
         f'P/E 0–{f["max_pe"]:g}',
         f'prima ≥ {f["min_weekly_yield"] * 100:.1f}% semanal',
