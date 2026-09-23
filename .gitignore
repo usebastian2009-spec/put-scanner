@@ -1,0 +1,6 @@
+__pycache__/
+*.csv
+results.json
+report.html
+daily_put_report.md
+run.log
