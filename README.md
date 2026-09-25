@@ -23,7 +23,7 @@ Todo se ajusta en `config.py`.
 | Universo | Todas las acciones de EE. UU. del screener de Nasdaq con capitalización ≥ $2B |
 | Precio | $10 – $70 |
 | Liquidez | ≥ $10M negociados al día (promedio de 20 días) |
-| Beta (1 año vs SPY) | ≥ 3.0 (perfil IREN/CRWV; calculada con rendimientos diarios) |
+| Beta (1 año vs SPY) | ≥ 2.0 (el doble de volátil que el mercado; calculada con rendimientos diarios) |
 | RSI(14) diario | 30 – 50 (Wilder, igual que TradingView; verificado contra cierres de Nasdaq) |
 | P/E | positivo y ≤ 60 |
 | Fundamentales: supervivencia (todas) | current ratio ≥ 1.2 · deuda respaldada: cash ≥ 50% de la deuda **o** deuda/patrimonio ≤ 1.0 (dueña de sus activos: terreno, energía, equipo) · se financia sola: cash operativo positivo (el capex de expansión no cuenta como quema; si el cash operativo es negativo, caja para ≥ 2 años) |
