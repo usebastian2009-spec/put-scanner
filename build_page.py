@@ -222,7 +222,7 @@ def fundamentals_block(c):
             rows.append(f'<tr><td class="l">{mark}</td><td class="l">{esc(g)}</td>'
                         f'<td class="l">{esc(ch["name"])}</td><td>{esc(ch["value"])}</td></tr>')
     facts = (f'Cash {money(c.get("total_cash"))} · Deuda {money(c.get("total_debt"))} · '
-             f'Free cash flow {money(c.get("free_cash_flow"))} · Cash operativo {money(c.get("operating_cash_flow"))}')
+             f'FCF (incluye capex de expansión) {money(c.get("free_cash_flow"))} · Cash operativo {money(c.get("operating_cash_flow"))}')
     return ('<div class="block"><h3>Fundamentales (tesis: sólida y con cash para aguantar una crisis)</h3>'
             '<div class="scroll"><table><thead><tr><th class="l"></th><th class="l">Grupo</th><th class="l">Chequeo</th>'
             f'<th>Valor</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
@@ -300,13 +300,13 @@ def overview(companies):
             f'<tr><td><a href="#{esc(c["ticker"])}">{esc(c["ticker"])}</a></td><td>{num(c["spot"])}</td>'
             f'<td>{num(c.get("beta"), 2)}</td><td>{num(c.get("rsi"), 1)}</td><td>{num(c.get("pe"), 1)}</td>'
             f'<td>{"sin deuda" if not c.get("total_debt") and c.get("total_cash") else num(c.get("cash_to_debt"), 0, pct=True)}</td>'
-            f'<td>{money(c.get("free_cash_flow"))}</td>'
+            f'<td>{money(c.get("operating_cash_flow"))}</td>'
             f'<td class="floor-t">{strike_txt(c.get("floor"))}</td><td class="ceil-t">{strike_txt(c.get("ceiling"))}</td>'
             f'<td class="l">{esc(c.get("gamma_regime") or "—")}</td>'
             f'<td>{"—" if c.get("earnings_days") is None else int(c["earnings_days"])}</td>'
             f'<td class="l">{put_txt}</td></tr>')
     return ('<div class="scroll"><table class="overview"><thead><tr><th class="l">Ticker</th><th>Precio</th>'
-            '<th>Beta</th><th>RSI</th><th>P/E</th><th>Cash/deuda</th><th>FCF</th><th>Piso</th><th>Techo</th><th class="l">Gamma</th><th>Earnings (días)</th>'
+            '<th>Beta</th><th>RSI</th><th>P/E</th><th>Cash/deuda</th><th>Cash oper.</th><th>Piso</th><th>Techo</th><th class="l">Gamma</th><th>Earnings (días)</th>'
             f'<th class="l">Put semanal con más prima</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
 
 
@@ -325,7 +325,8 @@ def build(data):
     ]
     if f.get("fundamentals"):
         chips.append(f'fundamentales: current ratio ≥ {f["min_current_ratio"]:g}, '
-                     f'cash ≥ {f["min_cash_to_debt"] * 100:.0f}% deuda, FCF > 0 o ≥ {f["min_runway_years"]:g} años de caja')
+                     f'deuda cubierta (cash ≥ {f["min_cash_to_debt"] * 100:.0f}% o D/P ≤ {f.get("asset_backed_max_de", 1):g}), '
+                     f'cash operativo > 0 (capex de expansión no cuenta)')
     funnel = "".join(f"<span>{esc(k)}: <b>{v}</b></span>" for k, v in
                      sorted(data.get("funnel", {}).items(), key=lambda kv: -kv[1]))
     body = "".join(company(c) for c in companies) if companies else \
