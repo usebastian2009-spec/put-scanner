@@ -13,11 +13,12 @@ MIN_MARKET_CAP = 2_000_000_000
 RSI_MIN = 30.0
 RSI_MAX = 50.0
 RSI_USE_LIVE_BAR = True
-# High beta: 1-year beta vs SPY from daily returns (computed here, not Yahoo's)
-MIN_BETA = 1.3
+# High beta: 1-year beta vs SPY from daily returns (computed here, not Yahoo's).
+# 3.0 = only IREN/CRWV-type names (very volatile, fat weekly premiums).
+MIN_BETA = 3.0
 BETA_LOOKBACK_DAYS = 252
 # Trailing P/E must be positive (profitable) and at most MAX_PE.
-MAX_PE = 25.0
+MAX_PE = 60.0
 # Premium: yield on collateral normalised to 7 days (premium/strike * 7/DTE).
 MIN_WEEKLY_YIELD = 0.008   # 0.80% per week
 # --------------------------------------------------------------------------
