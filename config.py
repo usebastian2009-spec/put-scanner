@@ -31,12 +31,19 @@ MIN_WEEKLY_YIELD = 0.008   # 0.80% per week
 FUNDAMENTALS_FILTER = True
 # Supervivencia (TODAS obligatorias)
 MIN_CURRENT_RATIO = 1.2       # activos corrientes / pasivos corrientes
-MIN_CASH_TO_DEBT = 0.5        # cash >= 50% de la deuda total (>= 1 = caja neta)
-MIN_RUNWAY_YEARS = 2.0        # si el free cash flow es negativo, el cash cubre >= 2 años de quema
+# Deuda respaldada: pasa si el cash cubre >= MIN_CASH_TO_DEBT de la deuda, O si la
+# compañía es dueña de sus activos (terreno, energía, equipo) y la deuda está cubierta
+# por el patrimonio (deuda/patrimonio <= ASSET_BACKED_MAX_DE). Caso IREN.
+MIN_CASH_TO_DEBT = 0.5
+ASSET_BACKED_MAX_DE = 1.0
+# Se financia sola: cash OPERATIVO positivo. El capex de expansión NO cuenta como
+# quema (por eso no se usa el free cash flow). Si el cash operativo es negativo,
+# la caja tiene que cubrir >= MIN_RUNWAY_YEARS de esa quema.
+MIN_RUNWAY_YEARS = 2.0
 # Calidad (hay que pasar al menos MIN_QUALITY_PASS de 3)
-REQUIRE_POSITIVE_OCF = True   # el negocio genera cash operativo (capex aparte)
 MIN_REVENUE_GROWTH = 0.0      # ventas creciendo vs el año anterior
 MAX_DEBT_TO_EQUITY = 1.5      # deuda / patrimonio
+# (el tercero: margen operativo positivo)
 MIN_QUALITY_PASS = 2
 # --------------------------------------------------------------------------
 
