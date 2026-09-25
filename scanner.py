@@ -327,6 +327,7 @@ def get_fundamentals(info):
     fcf = safe_float(info.get("freeCashflow"))
     ocf = safe_float(info.get("operatingCashflow"))
     growth = safe_float(info.get("revenueGrowth"))
+    op_margin = safe_float(info.get("operatingMargins"))
     de = safe_float(info.get("debtToEquity"))
     de = de / 100.0 if np.isfinite(de) else de   # Yahoo reports it in percent
 
@@ -337,17 +338,35 @@ def get_fundamentals(info):
     else:
         cash_to_debt = np.nan
 
-    if np.isfinite(fcf) and fcf > 0:
-        runway_ok, runway_txt = True, "FCF positivo"
-    elif np.isfinite(fcf) and np.isfinite(cash):
-        years = cash / -fcf if fcf < 0 else np.inf
+    if np.isfinite(ocf) and ocf > 0:
+        runway_ok = True
+        runway_txt = "cash operativo %s" % compact_money(ocf)
+        if np.isfinite(fcf) and fcf < 0:
+            runway_txt += " (FCF %s por capex de expansión: no cuenta)" % compact_money(fcf)
+    elif np.isfinite(ocf) and np.isfinite(cash):
+        years = cash / -ocf if ocf < 0 else np.inf
         runway_ok = years >= MIN_RUNWAY_YEARS
-        runway_txt = "quema cash: %.1f años de caja" % years
+        runway_txt = "quema operativa: %.1f años de caja" % years
     else:
         runway_ok, runway_txt = False, "sin datos"
 
     def ok(v, test):
         return bool(np.isfinite(v) and test(v))
+
+    cash_cover = cash_to_debt == np.inf or ok(cash_to_debt, lambda v: v >= MIN_CASH_TO_DEBT)
+    asset_backed = ok(de, lambda v: v <= ASSET_BACKED_MAX_DE)
+    debt_ok = cash_cover or asset_backed
+    if cash_to_debt == np.inf:
+        debt_txt = "sin deuda"
+    else:
+        parts = []
+        if np.isfinite(cash_to_debt):
+            parts.append("cash %.0f%% de la deuda" % (cash_to_debt * 100))
+        if np.isfinite(de):
+            parts.append("D/P %.2f" % de)
+        debt_txt = " · ".join(parts) or "sin datos"
+        if not cash_cover and asset_backed:
+            debt_txt += " (respaldada por activos propios)"
 
     def txt(v, fmt):
         return "sin datos" if not np.isfinite(v) else fmt(v)
@@ -355,13 +374,12 @@ def get_fundamentals(info):
     survival = [
         ("Liquidez (current ratio ≥ %g)" % MIN_CURRENT_RATIO,
          txt(current_ratio, lambda v: "%.2f" % v), ok(current_ratio, lambda v: v >= MIN_CURRENT_RATIO)),
-        ("Cash vs deuda (≥ %d%%)" % round(MIN_CASH_TO_DEBT * 100),
-         "sin deuda" if cash_to_debt == np.inf else txt(cash_to_debt, lambda v: "%.0f%%" % (v * 100)),
-         (cash_to_debt == np.inf or ok(cash_to_debt, lambda v: v >= MIN_CASH_TO_DEBT))),
-        ("Aguanta sin financiarse (FCF > 0 o ≥ %g años de caja)" % MIN_RUNWAY_YEARS, runway_txt, runway_ok),
+        ("Deuda respaldada (cash ≥ %d%% de la deuda, o deuda/patrimonio ≤ %g)"
+         % (round(MIN_CASH_TO_DEBT * 100), ASSET_BACKED_MAX_DE), debt_txt, debt_ok),
+        ("Se financia sola (cash operativo > 0 o ≥ %g años de caja; capex de expansión no cuenta)" % MIN_RUNWAY_YEARS, runway_txt, runway_ok),
     ]
     quality = [
-        ("Cash operativo positivo", txt(ocf, compact_money), ok(ocf, lambda v: v > 0) or not REQUIRE_POSITIVE_OCF),
+        ("Margen operativo positivo", txt(op_margin, lambda v: "%+.0f%%" % (v * 100)), ok(op_margin, lambda v: v > 0)),
         ("Ventas creciendo (≥ %g%%)" % (MIN_REVENUE_GROWTH * 100),
          txt(growth, lambda v: "%+.0f%%" % (v * 100)), ok(growth, lambda v: v >= MIN_REVENUE_GROWTH)),
         ("Deuda/patrimonio ≤ %g" % MAX_DEBT_TO_EQUITY,
@@ -373,7 +391,7 @@ def get_fundamentals(info):
     return {
         "total_cash": cash, "total_debt": debt, "current_ratio": current_ratio,
         "free_cash_flow": fcf, "operating_cash_flow": ocf, "revenue_growth": growth,
-        "debt_to_equity": de, "cash_to_debt": cash_to_debt if np.isfinite(cash_to_debt) else None,
+        "debt_to_equity": de, "operating_margin": op_margin, "cash_to_debt": cash_to_debt if np.isfinite(cash_to_debt) else None,
         "fund_checks": [{"group": g, "name": n, "value": v, "passed": bool(p)}
                         for g, rows in (("supervivencia", survival), ("calidad", quality)) for n, v, p in rows],
         "fund_survival_ok": survival_ok, "fund_quality_pass": int(quality_n),
@@ -1072,6 +1090,7 @@ def write_json(summaries, puts_df, universe_size, prefiltered, path="results.jso
         "filters": {"price": [MIN_PRICE, MAX_PRICE], "rsi": [RSI_MIN, RSI_MAX], "min_beta": MIN_BETA, "max_pe": MAX_PE,
                     "fundamentals": FUNDAMENTALS_FILTER, "min_current_ratio": MIN_CURRENT_RATIO,
                     "min_cash_to_debt": MIN_CASH_TO_DEBT, "min_runway_years": MIN_RUNWAY_YEARS,
+                    "asset_backed_max_de": ASSET_BACKED_MAX_DE,
                     "min_quality_pass": MIN_QUALITY_PASS,
                     "min_weekly_yield": MIN_WEEKLY_YIELD, "delta": [MIN_DELTA, MAX_DELTA],
                     "dte": [MIN_DTE, MAX_DTE], "min_market_cap": MIN_MARKET_CAP,
