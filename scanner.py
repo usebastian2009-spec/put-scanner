@@ -887,7 +887,7 @@ def scan_ticker(symbol):
             (earnings <= AVOID_EARNINGS_WITHIN_DAYS) | (earnings <= puts["dte"]))
 
         for k, v in summary.items():
-            if k in ("strike_map", "big_contracts"):
+            if k in ("strike_map", "big_contracts", "fund_checks"):
                 continue
             if k not in puts.columns:
                 puts[k] = v
