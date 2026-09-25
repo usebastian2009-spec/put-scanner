@@ -23,6 +23,23 @@ MAX_PE = 60.0
 MIN_WEEKLY_YIELD = 0.008   # 0.80% per week
 # --------------------------------------------------------------------------
 
+# ---- Tesis: watchlist de compañías sólidas con beta alta ------------------
+# Vendo puts en compañías fundamentalmente sólidas, con suficiente cash para
+# sobrevivir una crisis, y con beta alta para cobrar primas más gordas. Si me
+# asignan, me quedo con una compañía que quiero tener; el watchlist rota solo.
+# Datos de Yahoo (último año / último trimestre). Un dato faltante = no pasa.
+FUNDAMENTALS_FILTER = True
+# Supervivencia (TODAS obligatorias)
+MIN_CURRENT_RATIO = 1.2       # activos corrientes / pasivos corrientes
+MIN_CASH_TO_DEBT = 0.5        # cash >= 50% de la deuda total (>= 1 = caja neta)
+MIN_RUNWAY_YEARS = 2.0        # si el free cash flow es negativo, el cash cubre >= 2 años de quema
+# Calidad (hay que pasar al menos MIN_QUALITY_PASS de 3)
+REQUIRE_POSITIVE_OCF = True   # el negocio genera cash operativo (capex aparte)
+MIN_REVENUE_GROWTH = 0.0      # ventas creciendo vs el año anterior
+MAX_DEBT_TO_EQUITY = 1.5      # deuda / patrimonio
+MIN_QUALITY_PASS = 2
+# --------------------------------------------------------------------------
+
 # Weekly puts: sell the first expiration 3-10 days out (the upcoming full week)
 MIN_DTE = 3
 MAX_DTE = 10
