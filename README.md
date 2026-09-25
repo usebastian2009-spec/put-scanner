@@ -26,8 +26,8 @@ Todo se ajusta en `config.py`.
 | Beta (1 año vs SPY) | ≥ 3.0 (perfil IREN/CRWV; calculada con rendimientos diarios) |
 | RSI(14) diario | 30 – 50 (Wilder, igual que TradingView; verificado contra cierres de Nasdaq) |
 | P/E | positivo y ≤ 60 |
-| Fundamentales: supervivencia (todas) | current ratio ≥ 1.2 · cash ≥ 50% de la deuda total (o sin deuda) · free cash flow positivo, o si quema cash, caja para ≥ 2 años |
-| Fundamentales: calidad (≥ 2 de 3) | cash operativo positivo · ventas creciendo vs el año anterior · deuda/patrimonio ≤ 1.5 |
+| Fundamentales: supervivencia (todas) | current ratio ≥ 1.2 · deuda respaldada: cash ≥ 50% de la deuda **o** deuda/patrimonio ≤ 1.0 (dueña de sus activos: terreno, energía, equipo) · se financia sola: cash operativo positivo (el capex de expansión no cuenta como quema; si el cash operativo es negativo, caja para ≥ 2 años) |
+| Fundamentales: calidad (≥ 2 de 3) | margen operativo positivo · ventas creciendo vs el año anterior · deuda/patrimonio ≤ 1.5 |
 | Vencimiento | el primer viernes a 3–10 días (semanal) |
 | Earnings | se descarta si hay earnings antes del vencimiento |
 | Put | delta 0.12–0.30, OI ≥ 100 o volumen ≥ 10, prima ≥ 0.8% semanal |
