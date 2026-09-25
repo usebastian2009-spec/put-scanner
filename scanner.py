@@ -315,8 +315,82 @@ def _trim_sentences(text, limit):
     return cut[:end + 1] if end > 0 else cut.rsplit(" ", 1)[0] + "…"
 
 
-def get_pe(t, spot):
-    info = get_info(t)
+def get_fundamentals(info):
+    """Tesis: compañía sólida con cash para sobrevivir una crisis.
+
+    Returns a dict with the raw numbers, a list of checks (name, value text,
+    passed) and whether the company passes. Missing data counts as a fail.
+    """
+    cash = safe_float(info.get("totalCash"))
+    debt = safe_float(info.get("totalDebt"))
+    current_ratio = safe_float(info.get("currentRatio"))
+    fcf = safe_float(info.get("freeCashflow"))
+    ocf = safe_float(info.get("operatingCashflow"))
+    growth = safe_float(info.get("revenueGrowth"))
+    de = safe_float(info.get("debtToEquity"))
+    de = de / 100.0 if np.isfinite(de) else de   # Yahoo reports it in percent
+
+    if np.isfinite(cash) and (not np.isfinite(debt) or debt <= 0):
+        cash_to_debt = np.inf if cash > 0 else np.nan   # no debt: pass
+    elif np.isfinite(cash) and np.isfinite(debt):
+        cash_to_debt = cash / debt
+    else:
+        cash_to_debt = np.nan
+
+    if np.isfinite(fcf) and fcf > 0:
+        runway_ok, runway_txt = True, "FCF positivo"
+    elif np.isfinite(fcf) and np.isfinite(cash):
+        years = cash / -fcf if fcf < 0 else np.inf
+        runway_ok = years >= MIN_RUNWAY_YEARS
+        runway_txt = "quema cash: %.1f años de caja" % years
+    else:
+        runway_ok, runway_txt = False, "sin datos"
+
+    def ok(v, test):
+        return bool(np.isfinite(v) and test(v))
+
+    def txt(v, fmt):
+        return "sin datos" if not np.isfinite(v) else fmt(v)
+
+    survival = [
+        ("Liquidez (current ratio ≥ %g)" % MIN_CURRENT_RATIO,
+         txt(current_ratio, lambda v: "%.2f" % v), ok(current_ratio, lambda v: v >= MIN_CURRENT_RATIO)),
+        ("Cash vs deuda (≥ %d%%)" % round(MIN_CASH_TO_DEBT * 100),
+         "sin deuda" if cash_to_debt == np.inf else txt(cash_to_debt, lambda v: "%.0f%%" % (v * 100)),
+         (cash_to_debt == np.inf or ok(cash_to_debt, lambda v: v >= MIN_CASH_TO_DEBT))),
+        ("Aguanta sin financiarse (FCF > 0 o ≥ %g años de caja)" % MIN_RUNWAY_YEARS, runway_txt, runway_ok),
+    ]
+    quality = [
+        ("Cash operativo positivo", txt(ocf, compact_money), ok(ocf, lambda v: v > 0) or not REQUIRE_POSITIVE_OCF),
+        ("Ventas creciendo (≥ %g%%)" % (MIN_REVENUE_GROWTH * 100),
+         txt(growth, lambda v: "%+.0f%%" % (v * 100)), ok(growth, lambda v: v >= MIN_REVENUE_GROWTH)),
+        ("Deuda/patrimonio ≤ %g" % MAX_DEBT_TO_EQUITY,
+         txt(de, lambda v: "%.2f" % v), ok(de, lambda v: v <= MAX_DEBT_TO_EQUITY)),
+    ]
+    survival_ok = all(p for _, _, p in survival)
+    quality_n = sum(p for _, _, p in quality)
+    passed = survival_ok and quality_n >= MIN_QUALITY_PASS
+    return {
+        "total_cash": cash, "total_debt": debt, "current_ratio": current_ratio,
+        "free_cash_flow": fcf, "operating_cash_flow": ocf, "revenue_growth": growth,
+        "debt_to_equity": de, "cash_to_debt": cash_to_debt if np.isfinite(cash_to_debt) else None,
+        "fund_checks": [{"group": g, "name": n, "value": v, "passed": bool(p)}
+                        for g, rows in (("supervivencia", survival), ("calidad", quality)) for n, v, p in rows],
+        "fund_survival_ok": survival_ok, "fund_quality_pass": int(quality_n),
+        "fund_passed": passed,
+    }
+
+
+def compact_money(v):
+    a = abs(v)
+    for div, suf in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if a >= div:
+            return "%s$%.1f%s" % ("-" if v < 0 else "", a / div, suf)
+    return "%s$%.0f" % ("-" if v < 0 else "", a)
+
+
+def get_pe(t, spot, info=None):
+    info = info if info is not None else get_info(t)
     pe = safe_float(info.get("trailingPE"))
     fpe = safe_float(info.get("forwardPE"))
     eps = safe_float(info.get("trailingEps"))
@@ -497,10 +571,20 @@ def get_base(ticker):
         FUNNEL["RSI diario fuera de %g-%g" % (RSI_MIN, RSI_MAX)] += 1
         return None
 
-    pe_info = get_pe(t, spot)
+    info = get_info(t)
+    pe_info = get_pe(t, spot, info)
     if not (np.isfinite(pe_info["pe"]) and 0 < pe_info["pe"] <= MAX_PE):
         FUNNEL["P/E no positivo o > %g" % MAX_PE] += 1
         return None
+
+    fund = get_fundamentals(info)
+    if FUNDAMENTALS_FILTER and not fund["fund_passed"]:
+        if not fund["fund_survival_ok"]:
+            FUNNEL["fundamentales: no pasa supervivencia (cash/liquidez)"] += 1
+        else:
+            FUNNEL["fundamentales: calidad < %d de 3" % MIN_QUALITY_PASS] += 1
+        return None
+    pe_info.update(fund)
 
     weekly = close.resample("W-FRI").last().dropna()
     rsi_weekly = float(rsi_wilder(weekly, RSI_PERIOD).iloc[-1])
@@ -741,6 +825,9 @@ SUMMARY_KEYS = [
     "bullish_divergence", "divergence_detail", "pe", "pe_source", "eps_ttm", "forward_pe",
     "sector", "industry", "market_cap", "avg_dollar_volume", "business_summary", "website",
     "bars_filled_from_hourly", "bars_still_missing",
+    "total_cash", "total_debt", "current_ratio", "free_cash_flow", "operating_cash_flow",
+    "revenue_growth", "debt_to_equity", "cash_to_debt", "fund_checks", "fund_survival_ok",
+    "fund_quality_pass", "fund_passed",
 ]
 
 
@@ -983,6 +1070,9 @@ def write_json(summaries, puts_df, universe_size, prefiltered, path="results.jso
     out = {
         "generated_at": now_ny().strftime("%Y-%m-%d %H:%M ET"),
         "filters": {"price": [MIN_PRICE, MAX_PRICE], "rsi": [RSI_MIN, RSI_MAX], "min_beta": MIN_BETA, "max_pe": MAX_PE,
+                    "fundamentals": FUNDAMENTALS_FILTER, "min_current_ratio": MIN_CURRENT_RATIO,
+                    "min_cash_to_debt": MIN_CASH_TO_DEBT, "min_runway_years": MIN_RUNWAY_YEARS,
+                    "min_quality_pass": MIN_QUALITY_PASS,
                     "min_weekly_yield": MIN_WEEKLY_YIELD, "delta": [MIN_DELTA, MAX_DELTA],
                     "dte": [MIN_DTE, MAX_DTE], "min_market_cap": MIN_MARKET_CAP,
                     "min_dollar_volume": MIN_AVG_DOLLAR_VOLUME, "gex_max_dte": GEX_MAX_DTE,
