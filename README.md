@@ -13,9 +13,9 @@ Todo se ajusta en `config.py`.
 | Universo | Todas las acciones de EE. UU. del screener de Nasdaq con capitalización ≥ $2B |
 | Precio | $10 – $70 |
 | Liquidez | ≥ $10M negociados al día (promedio de 20 días) |
-| Beta (1 año vs SPY) | ≥ 1.3 (calculada con rendimientos diarios) |
+| Beta (1 año vs SPY) | ≥ 3.0 (perfil IREN/CRWV; calculada con rendimientos diarios) |
 | RSI(14) diario | 30 – 50 (Wilder, igual que TradingView; verificado contra cierres de Nasdaq) |
-| P/E | positivo y ≤ 25 |
+| P/E | positivo y ≤ 60 |
 | Vencimiento | el primer viernes a 3–10 días (semanal) |
 | Earnings | se descarta si hay earnings antes del vencimiento |
 | Put | delta 0.12–0.30, OI ≥ 100 o volumen ≥ 10, prima ≥ 0.8% semanal |
