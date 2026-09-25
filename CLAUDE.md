@@ -2,6 +2,13 @@
 
 Escáner diario para vender puts semanales. Ver README.md.
 
+Tesis del usuario: watchlist de compañías fundamentalmente sólidas, con cash para
+sobrevivir una crisis y beta alta para primas más elevadas; vende puts en sus niveles
+y rota el portafolio dentro del watchlist. Los chequeos de fundamentales
+(`FUNDAMENTALS_FILTER` y siguientes en config.py) implementan esa tesis: no los
+aflojes sin que él lo pida. En el resumen diario menciona cash/deuda y FCF de cada
+compañía que pase.
+
 ## Ejecución diaria (rutina de Claude)
 
 1. `./run_daily.sh` — tarda ~30 min; genera `results.json` y `report.html`.
