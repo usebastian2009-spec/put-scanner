@@ -14,8 +14,9 @@ RSI_MIN = 30.0
 RSI_MAX = 50.0
 RSI_USE_LIVE_BAR = True
 # High beta: 1-year beta vs SPY from daily returns (computed here, not Yahoo's).
-# 3.0 = only IREN/CRWV-type names (very volatile, fat weekly premiums).
-MIN_BETA = 3.0
+# 2.0 = twice as volatile as the market (higher weekly premiums) without
+# leaving only the most speculative names (3.0 left almost nothing profitable).
+MIN_BETA = 2.0
 BETA_LOOKBACK_DAYS = 252
 # Trailing P/E must be positive (profitable) and at most MAX_PE.
 MAX_PE = 60.0
