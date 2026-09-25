@@ -73,6 +73,8 @@ header.top{display:flex;flex-direction:column;gap:8px}
 .filters{display:flex;flex-wrap:wrap;gap:6px}
 .chip{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;padding:2px 8px;border:1px solid var(--line);
   border-radius:4px;background:var(--surface);color:var(--muted);white-space:nowrap}
+.thesis{margin:6px 0 10px;max-width:72ch;color:var(--muted);line-height:1.5}
+.thesis b{color:var(--ink)}
 .chip.floor{color:var(--floor);border-color:var(--floor)}
 .chip.ceil{color:var(--ceil);border-color:var(--ceil)}
 .chip.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent}
@@ -203,6 +205,30 @@ def puts_table(c):
             f'<p class="note">Prima = {esc(src)}. Rend. = prima ÷ strike (colateral en efectivo).</p>')
 
 
+def money(n):
+    if n is None:
+        return "—"
+    return ("-$" if float(n) < 0 else "$") + compact(abs(float(n)))
+
+
+def fundamentals_block(c):
+    checks = c.get("fund_checks") or []
+    if not checks:
+        return ""
+    rows = []
+    for g in ("supervivencia", "calidad"):
+        for ch in [x for x in checks if x["group"] == g]:
+            mark = '<span class="floor-t">✓</span>' if ch["passed"] else '<span class="ceil-t">✗</span>'
+            rows.append(f'<tr><td class="l">{mark}</td><td class="l">{esc(g)}</td>'
+                        f'<td class="l">{esc(ch["name"])}</td><td>{esc(ch["value"])}</td></tr>')
+    facts = (f'Cash {money(c.get("total_cash"))} · Deuda {money(c.get("total_debt"))} · '
+             f'Free cash flow {money(c.get("free_cash_flow"))} · Cash operativo {money(c.get("operating_cash_flow"))}')
+    return ('<div class="block"><h3>Fundamentales (tesis: sólida y con cash para aguantar una crisis)</h3>'
+            '<div class="scroll"><table><thead><tr><th class="l"></th><th class="l">Grupo</th><th class="l">Chequeo</th>'
+            f'<th>Valor</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
+            f'<p class="note">{facts}. Calidad: {c.get("fund_quality_pass", "—")} de 3.</p></div>')
+
+
 def company(c):
     tk = esc(c["ticker"])
     regime = c.get("gamma_regime")
@@ -227,6 +253,9 @@ def company(c):
         ("Techo 2", strike_txt(c.get("ceiling_2")), "ceil"),
         ("Gamma flip", num(flip) if flip is not None else "—", ""),
         ("Cap. mercado", compact(c.get("market_cap")), ""),
+        ("Cash", money(c.get("total_cash")), ""),
+        ("Deuda", money(c.get("total_debt")), ""),
+        ("Current ratio", num(c.get("current_ratio"), 2), ""),
     ]
     stats_html = "".join(f'<div class="stat"><span class="k">{k}</span><span class="v {cls}">{v}</span></div>'
                          for k, v, cls in stats)
@@ -255,6 +284,7 @@ def company(c):
     {contracts_table(bc.get("by_oi"), "Contratos con más open interest")}
     {contracts_table(bc.get("by_volume"), "Contratos con más volumen hoy")}
   </div>
+  {fundamentals_block(c)}
   <div class="block"><h3>Background</h3><p class="about">{about or "Sin descripción disponible."}</p>
     <div class="links">{"".join(links)}</div></div>
 </section>"""
@@ -269,12 +299,14 @@ def overview(companies):
         rows.append(
             f'<tr><td><a href="#{esc(c["ticker"])}">{esc(c["ticker"])}</a></td><td>{num(c["spot"])}</td>'
             f'<td>{num(c.get("beta"), 2)}</td><td>{num(c.get("rsi"), 1)}</td><td>{num(c.get("pe"), 1)}</td>'
+            f'<td>{"sin deuda" if not c.get("total_debt") and c.get("total_cash") else num(c.get("cash_to_debt"), 0, pct=True)}</td>'
+            f'<td>{money(c.get("free_cash_flow"))}</td>'
             f'<td class="floor-t">{strike_txt(c.get("floor"))}</td><td class="ceil-t">{strike_txt(c.get("ceiling"))}</td>'
             f'<td class="l">{esc(c.get("gamma_regime") or "—")}</td>'
             f'<td>{"—" if c.get("earnings_days") is None else int(c["earnings_days"])}</td>'
             f'<td class="l">{put_txt}</td></tr>')
     return ('<div class="scroll"><table class="overview"><thead><tr><th class="l">Ticker</th><th>Precio</th>'
-            '<th>Beta</th><th>RSI</th><th>P/E</th><th>Piso</th><th>Techo</th><th class="l">Gamma</th><th>Earnings (días)</th>'
+            '<th>Beta</th><th>RSI</th><th>P/E</th><th>Cash/deuda</th><th>FCF</th><th>Piso</th><th>Techo</th><th class="l">Gamma</th><th>Earnings (días)</th>'
             f'<th class="l">Put semanal con más prima</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
 
 
@@ -291,6 +323,9 @@ def build(data):
         f'vence en {f["dte"][0]}–{f["dte"][1]} días',
         f'cap. ≥ {compact(f["min_market_cap"])}',
     ]
+    if f.get("fundamentals"):
+        chips.append(f'fundamentales: current ratio ≥ {f["min_current_ratio"]:g}, '
+                     f'cash ≥ {f["min_cash_to_debt"] * 100:.0f}% deuda, FCF > 0 o ≥ {f["min_runway_years"]:g} años de caja')
     funnel = "".join(f"<span>{esc(k)}: <b>{v}</b></span>" for k, v in
                      sorted(data.get("funnel", {}).items(), key=lambda kv: -kv[1]))
     body = "".join(company(c) for c in companies) if companies else \
@@ -304,6 +339,9 @@ def build(data):
   <header class="top">
     <h3>Escaneo del {esc(data["generated_at"])}</h3>
     <h1>{len(companies)} compañías para vender puts semanales</h1>
+    <p class="thesis"><b>Tesis:</b> watchlist de compañías fundamentalmente sólidas, con cash suficiente para
+    sobrevivir una crisis y beta alta para cobrar primas más altas. Vendo puts en mis niveles; si me asignan,
+    me quedo con una compañía que quiero tener y el watchlist va rotando.</p>
     <div class="filters">{"".join(f'<span class="chip">{esc(x)}</span>' for x in chips)}</div>
     <div class="funnel"><span>Universo: <b>{data.get("universe_size", "—")}</b></span>{funnel}</div>
   </header>
